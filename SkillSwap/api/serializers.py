@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import UserProfile
+from .models import UserProfile,TeachingSkills,Skills,LearningSkills
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -23,6 +23,19 @@ class UserSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
+        fields = ['id','bio','location','profile_image','created_at']
+
+class SkillsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Skills
         fields = '__all__'
 
+class TeachingSkillsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TeachingSkills
+        fields = '__all__'
 
+class LearningSkillsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LearningSkills
+        fields = '__all__'
