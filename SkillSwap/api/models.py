@@ -13,12 +13,12 @@ class UserProfile(models.Model):
         return self.user.user_name
     
 class Skills(models.Model):
-    name = models.CharField(max_length=100,unique=True)
+    name = models.CharField(max_length=100, unique=True)
     type = models.CharField(max_length=100,blank=True,null=True)
     description = models.TextField()
 
     def __str__(self):
-        return self.skill.skill
+        return self.name
     
 class TeachingSkills(models.Model):
     user = models.ForeignKey(User,on_delete=models.CASCADE, related_name='teaching_skill')

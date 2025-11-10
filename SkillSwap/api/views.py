@@ -68,10 +68,10 @@ def profile(request,id):
         return Response({"message ": f"{str(e)}"},status= status.HTTP_404_NOT_FOUND, exception= True,content_type= "application/json")  
 
 @api_view(['POST'])
-@permission_classes(IsAdminUser)
+@permission_classes([IsAdminUser])
 def create_skills(request):
     try:
-        serializer = SkillsSerializer(request.data)
+        serializer = SkillsSerializer(data = request.data)
         if serializer.is_valid():
             serializer.save()
             return Response({"message" : "Skill created"},status=status.HTTP_201_CREATED)
@@ -80,19 +80,19 @@ def create_skills(request):
         return Response({"message": f"Unexpected error occured {e}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 @api_view(['GET'])
-@permission_classes(IsAuthenticated)
+@permission_classes([IsAuthenticated])
 def fetch_skills(request):
     try:
         skills = Skills.objects.all()
         if request.method == 'GET':
-            serializer = SkillsSerializer(skills)
+            serializer = SkillsSerializer(instance = skills,many = True)
             return Response(serializer.data,status=status.HTTP_200_OK)
         return Response({"message": "No Skills found"},status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"message": str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['PUT','PATCH','DELETE'])
-@permission_classes(IsAdminUser)
+@permission_classes([IsAdminUser])
 def update_skills(request,id):
     try:
         skills = get_object_or_404(Skills,pk=id)
@@ -116,10 +116,10 @@ def update_skills(request,id):
         return Response({"message": f"Unexpected error occured {str(e)}"},status = status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 @api_view(['POST'])
-@permission_classes(IsAuthenticated)
+@permission_classes([IsAuthenticated])
 def create_teaching_skills(request):
     try:
-        serializer = TeachingSkillsSerializer(request.data)
+        serializer = TeachingSkillsSerializer(data= request.data)
         if serializer.is_valid():
             serializer.save()
             return Response({"message" : "Teaching Skill created"},status=status.HTTP_201_CREATED)
@@ -128,19 +128,19 @@ def create_teaching_skills(request):
         return Response({"message": f"Unexpected error occured {str(e)}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
-@permission_classes(IsAuthenticated)
+@permission_classes([IsAuthenticated])
 def fetch_teaching_skills(request):
     try:
         skills = TeachingSkills.objects.all()
         if request.method == 'GET':
-            serializer = TeachingSkillsSerializer(skills)
+            serializer = TeachingSkillsSerializer(skills, many= True)
             return Response(serializer.data,status=status.HTTP_200_OK)
         return Response({"message": "No Skills found"},status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"message": f"Unexpected error occured {str(e)}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET','PUT','PATCH','DELETE'])
-@permission_classes(IsAuthenticated)
+@permission_classes([IsAuthenticated])
 def teaching_skills(request,id):
     try:
         teaching_skills = get_object_or_404(TeachingSkills,pk=id)
@@ -167,10 +167,10 @@ def teaching_skills(request,id):
         return Response({"message": str(e)},status = status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 @api_view(['POST'])
-@permission_classes(IsAuthenticated)
+@permission_classes([IsAuthenticated])
 def create_learning_skills(request):
     try:
-        serializer = LearningSkillsSerializer(request.data)
+        serializer = LearningSkillsSerializer(data = request.data)
         if serializer.is_valid():
             serializer.save()
             return Response({"message" : "Learning Skill created"},status=status.HTTP_201_CREATED)
@@ -179,19 +179,19 @@ def create_learning_skills(request):
         return Response({"message": f"Unexpected error occured {str(e)}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR) 
 
 @api_view(['GET'])
-@permission_classes(IsAuthenticated)
+@permission_classes([IsAuthenticated])
 def fetch_learning_skills(request):
     try:
         skills = LearningSkills.objects.all()
         if request.method == 'GET':
-            serializer = LearningSkillsSerializer(skills)
+            serializer = LearningSkillsSerializer(skills,many = True)
             return Response(serializer.data,status=status.HTTP_200_OK)
         return Response({"message": "No Skills found"},status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"message": f"Unexpected error occured {str(e)}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET','PUT','PATCH','DELETE'])
-@permission_classes(IsAuthenticated)
+@permission_classes([IsAuthenticated])
 def learning_skills(request,id):
     try:
         learning_skills = get_object_or_404(LearningSkills,pk=id)
