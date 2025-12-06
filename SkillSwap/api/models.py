@@ -8,9 +8,10 @@ class UserProfile(models.Model):
     location = models.TextField(max_length=100,blank=True, null=True)
     profile_image = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    interest = models.CharField(max_length=255,blank=True,null=True)
 
     def __str__(self):
-        return self.user.user_name
+        return self.user.username
     
 class Skills(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -42,7 +43,7 @@ class TeachingSkills(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.user.username} teaches {self.skill.skill}"
+        return f"{self.user.username} teaches {self.skill.name}"
     
 class LearningSkills(models.Model):
     LEARNING_MODES = [
@@ -71,6 +72,11 @@ class LearningSkills(models.Model):
         null=True,
         help_text="Learner’s available days/times (e.g., weekends, evenings)"
     )
-    
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields= ['user','skills'],name= 'unique_learning_skill_per_user',violation_error_message='Skill already selected')
+        ]
+
     def __str__(self):
-        return f"{self.user.username} wants to learn {self.skill.name}"
+        return f"{self.user.username} wants to learn {self.skills.name}"

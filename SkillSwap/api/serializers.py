@@ -23,7 +23,7 @@ class UserSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
-        fields = ['id','bio','location','profile_image','created_at']
+        fields = '__all__'
 
 class SkillsSerializer(serializers.ModelSerializer):
     class Meta:
@@ -34,6 +34,11 @@ class TeachingSkillsSerializer(serializers.ModelSerializer):
     class Meta:
         model = TeachingSkills
         fields = '__all__'
+
+    def validate_stars(self,value):
+        if value<1 or value>5:
+            raise serializers.ValidationError("Rating must be between 1 to 5 stars")
+        return value
 
 class LearningSkillsSerializer(serializers.ModelSerializer):
     class Meta:

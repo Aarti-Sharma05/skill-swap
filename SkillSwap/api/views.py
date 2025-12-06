@@ -1,218 +1,200 @@
-from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
-from .models import UserProfile,Skills,TeachingSkills,LearningSkills
+from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.parsers import JSONParser
-import io
 from .serializers import UserSerializer,UserProfileSerializer,SkillsSerializer,LearningSkillsSerializer,TeachingSkillsSerializer
+from .selectors import get_user_by_id,get_skill_object,get_teaching_skill_object,get_teaching_skill_by_id,get_learning_skill_by_id,get_learning_skill_object
 from rest_framework import status
 from rest_framework.decorators import permission_classes
-from rest_framework.permissions import IsAuthenticated,IsAdminUser
+from rest_framework.permissions import IsAuthenticated
+from .services import get_ranked_users
+import redis
+import json
+redis_client = redis.Redis(host="localhost",port=6379,decode_responses=True)
 
-@api_view(['POST'])
-def Signup(request):
-    try:
-        if request.method == 'POST':
-            stream = io.BytesIO(request.body)
-            parsed_data = JSONParser().parse(stream)
-            serializer = UserSerializer(data = parsed_data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(
-                    {
-                      "message" : "Registered Successfully"
-                    },
-                    status=status.HTTP_201_CREATED,content_type='application/json')
-            return Response(data=
-                            {
-                                "message" : serializer.errors
-                            },status=status.HTTP_400_BAD_REQUEST,content_type='application/json')
-        return Response(data={
-                        "message": "Method Not allowed"
-                        }
-                        ,status=status.HTTP_405_METHOD_NOT_ALLOWED)
-    except Exception as e:
-        return Response({"message ": f"Unexpected Error occured {e}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR, exception= True,content_type= "application/json")  
+class Signup(APIView):
 
-@api_view(['GET','PUT','PATCH'])
-@permission_classes([IsAuthenticated])
-def profile(request,id):
-    try:
-        userprofile = get_object_or_404(UserProfile,user__id=id)
-        if request.method == 'GET':
-            serializer = UserProfileSerializer(userprofile)
-            return Response(serializer.data,status = status.HTTP_200_OK)
-        elif request.method == 'PUT':
-            serializer = UserProfileSerializer(instance=userprofile,data = request.data)
+    def post(self,request):
+        try:
+            serializer = UserSerializer(data=request.data)
             if serializer.is_valid():
-                serializer.save()
-                return Response(
-                    {
-                      "message" : "Updated Successfully"
-                    },
-                    status=status.HTTP_200_OK,content_type='application/json')
+                data = serializer.save()
+                message = {"message" : "User created successfully","user" : {"id": data.id,"username" : data.username}}
+                return Response(message,status=status.HTTP_201_CREATED)
             return Response({"message" : serializer.errors},status=status.HTTP_400_BAD_REQUEST,content_type='application/json')
-        elif request.method == 'PATCH':
-            serializer = UserProfileSerializer(instance = userprofile,data = request.data,partial = True)
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+class Profile(APIView):
+    permission_classes= [IsAuthenticated]
+
+    def get(self,request,id):
+        try:
+            serializer = UserProfileSerializer(get_user_by_id(id))
+            if serializer.data:
+                return Response(serializer.data,status = status.HTTP_200_OK)
+            return Response({"message" : "No record found"},status= status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR)
+       
+    def put(self,request,id):
+        try:
+            serializer = UserProfileSerializer(instance= get_user_by_id(id),data = request.data)
             if serializer.is_valid():
                 serializer.save()
-                return Response(
-                    {
-                      "message" : "Updated Successfully"
-                    },
-                    status=status.HTTP_200_OK,content_type='application/json')
+                return Response({"message" : "Updated Successfully"},status=status.HTTP_200_OK,content_type='application/json')
             return Response({"message" : serializer.errors},status=status.HTTP_400_BAD_REQUEST,content_type='application/json')
-        else:
-            return Response(data={"message": "Method Not allowed"},status=status.HTTP_405_METHOD_NOT_ALLOWED)
-    except Exception as e:
-        return Response({"message ": f"{str(e)}"},status= status.HTTP_404_NOT_FOUND, exception= True,content_type= "application/json")  
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-@api_view(['POST'])
-@permission_classes([IsAdminUser])
-def create_skills(request):
-    try:
-        serializer = SkillsSerializer(data = request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"message" : "Skill created"},status=status.HTTP_201_CREATED)
-        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
-    except Exception as e:
-        return Response({"message": f"Unexpected error occured {e}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR)
+    def patch(self,request,id):
+        try:
+            serializer = UserProfileSerializer(instance = get_user_by_id(id),data = request.data,partial = True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"message" : "Updated Successfully"},status=status.HTTP_200_OK,content_type='application/json')
+            return Response({"message" : serializer.errors},status=status.HTTP_400_BAD_REQUEST,content_type='application/json')
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR)          
+
+class Skill(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self,request):
+        try:
+            serializer = SkillsSerializer(instance = get_skill_object(),many = True)
+            return Response(serializer.data,status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+class TeachSkill(APIView):
+    permission_classes= [IsAuthenticated]
+
+    def post(self,request):
+        try:
+            serializer = TeachingSkillsSerializer(data = request.data)
+            if serializer.is_valid():
+                data =serializer.save()
+                return Response({"message" : "Teaching Skill created","teach-skill": data.id },status=status.HTTP_201_CREATED)
+            return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def get(self,request,id=None):
+        try:
+            if id:
+                serializer = TeachingSkillsSerializer(get_teaching_skill_by_id(id))
+            else:
+                serializer = TeachingSkillsSerializer(get_teaching_skill_object(), many= True)
+            return Response(serializer.data,status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    def put(self,request,id):
+        try:
+            serializer = TeachingSkillsSerializer(instance=get_teaching_skill_by_id(id), data = request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"message" : "Teaching Skill updated successfully"},status = status.HTTP_200_OK)
+            return Response(serializer.errors,status = status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def patch(self,request,id):
+        try:
+            serializer = TeachingSkillsSerializer(instance=get_teaching_skill_by_id(id), data = request.data,partial = True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"message" : "Teaching Skill updated successfully"},status = status.HTTP_200_OK)
+            return Response(serializer.errors,status = status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    def delete(self,request,id):
+        try:
+            teaching_skill = get_teaching_skill_by_id(id)
+            if teaching_skill:
+                teaching_skill.delete()
+                return Response({"message": "Record deleted successfully"},status=status.HTTP_200_OK)
+            return Response({"message": "Record not found"},status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class LearnSkill(APIView):
+    permission_classes= [IsAuthenticated]
+
+    def post(self,request):
+        try:
+            serializer = LearningSkillsSerializer(data = request.data)
+            if serializer.is_valid():
+                data =serializer.save()
+                return Response({"message" : "Learning Skill created","learn-skill": data.id },status=status.HTTP_201_CREATED)
+            return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def get(self,request,id=None):
+        try:
+            if id:
+                serializer = LearningSkillsSerializer((get_learning_skill_by_id(id)))
+            else:
+                serializer = LearningSkillsSerializer(get_learning_skill_object(), many= True)
+            return Response(serializer.data,status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    def put(self,request,id):
+        try:
+            serializer = LearningSkillsSerializer(instance=get_learning_skill_by_id(id), data = request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"message" : "Learning Skill updated successfully"},status = status.HTTP_200_OK)
+            return Response(serializer.errors,status = status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def patch(self,request,id):
+        try:
+            serializer = LearningSkillsSerializer(instance=get_learning_skill_by_id(id), data = request.data,partial = True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"message" : "Learning Skill updated successfully"},status = status.HTTP_200_OK)
+            return Response(serializer.errors,status = status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    def delete(self,request,id):
+        try:
+            teaching_skill = get_learning_skill_by_id(id)
+            if teaching_skill:
+                teaching_skill.delete()
+                return Response({"message": "Record deleted successfully"},status=status.HTTP_200_OK)
+            return Response({"message": "Record not found"},status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"message": f"Unexpected error occured {str(e)}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def fetch_skills(request):
+def home(request):
     try:
-        skills = Skills.objects.all()
-        if request.method == 'GET':
-            serializer = SkillsSerializer(instance = skills,many = True)
-            return Response(serializer.data,status=status.HTTP_200_OK)
-        return Response({"message": "No Skills found"},status=status.HTTP_404_NOT_FOUND)
+        user = request.user
+        cache_key = user.id
+        cached = redis_client.get(cache_key)
+        if cached:
+            data = json.loads(cached) 
+            return Response(data=data,status=status.HTTP_200_OK)
+        users = get_ranked_users(user)
+        data={
+            "matches": [{
+                    "id": u["user"].id,
+                    "profile_id" : u["user"].profile.id if u["user"].profile else None,
+                    "username": u["user"].username,
+                    "skills" : [u.skill.name for u in u["user"].teaching_skill.all()],
+                    "area_of_interest" : u["user"].profile.interest if u["user"].profile else None,
+                    "bio" : u["user"].profile.bio if u["user"].profile else None,
+                    "learning_skills" : [u.skills.name for u in u["user"].learning_skill.all()]
+                }
+                for u in users ]}
+        redis_client.set(cache_key,json.dumps(data),ex=300)
+        return Response(data=data,status=status.HTTP_200_OK)
     except Exception as e:
-        return Response({"message": str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['PUT','PATCH','DELETE'])
-@permission_classes([IsAdminUser])
-def update_skills(request,id):
-    try:
-        skills = get_object_or_404(Skills,pk=id)
-        if request.method == 'PUT':
-            serializer = SkillsSerializer(instance=skills, data = request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response({"message" : "Skill updated successfully"},status = status.HTTP_200_OK)
-            return Response(serializer.errors,status = status.HTTP_400_BAD_REQUEST)
-        if request.method == 'PATCH':
-            serializer = SkillsSerializer(instance = skills,data = request.data, partial = True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response({"message" : "Skill updated successfully"},status = status.HTTP_200_OK)
-            return Response(serializer.errors,status = status.HTTP_400_BAD_REQUEST)
-        if request.method == 'DELETE':
-            deleted_data = SkillsSerializer(skills).data
-            skills.delete()
-            return Response({"message" : "Record deleted successfully","deleted_data" : deleted_data},status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"message": f"Unexpected error occured {str(e)}"},status = status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def create_teaching_skills(request):
-    try:
-        serializer = TeachingSkillsSerializer(data= request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"message" : "Teaching Skill created"},status=status.HTTP_201_CREATED)
-        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
-    except Exception as e:
-        return Response({"message": f"Unexpected error occured {str(e)}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def fetch_teaching_skills(request):
-    try:
-        skills = TeachingSkills.objects.all()
-        if request.method == 'GET':
-            serializer = TeachingSkillsSerializer(skills, many= True)
-            return Response(serializer.data,status=status.HTTP_200_OK)
-        return Response({"message": "No Skills found"},status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        return Response({"message": f"Unexpected error occured {str(e)}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['GET','PUT','PATCH','DELETE'])
-@permission_classes([IsAuthenticated])
-def teaching_skills(request,id):
-    try:
-        teaching_skills = get_object_or_404(TeachingSkills,pk=id)
-        if request.method == 'GET':
-            seriaizer = TeachingSkillsSerializer(teaching_skills)
-            return Response(seriaizer.data,status=status.HTTP_200_OK)
-        if request.method == 'PUT':
-            serializer = TeachingSkillsSerializer(instance=teaching_skills, data = request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response({"message" : "Skill updated successfully"},status = status.HTTP_200_OK)
-            return Response(serializer.errors,status = status.HTTP_400_BAD_REQUEST)
-        if request.method == 'PATCH':
-            serializer = TeachingSkillsSerializer(instance = teaching_skills,data = request.data, partial = True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response({"message" : "Skill updated successfully"},status = status.HTTP_200_OK)
-            return Response(serializer.errors,status = status.HTTP_400_BAD_REQUEST)
-        if request.method == 'DELETE':
-            deleted_data = TeachingSkillsSerializer(teaching_skills).data
-            teaching_skills.delete()
-            return Response({"message" : "Record deleted successfully","deleted_data" : deleted_data},status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"message": str(e)},status = status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def create_learning_skills(request):
-    try:
-        serializer = LearningSkillsSerializer(data = request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"message" : "Learning Skill created"},status=status.HTTP_201_CREATED)
-        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
-    except Exception as e:
-        return Response({"message": f"Unexpected error occured {str(e)}"},status= status.HTTP_500_INTERNAL_SERVER_ERROR) 
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def fetch_learning_skills(request):
-    try:
-        skills = LearningSkills.objects.all()
-        if request.method == 'GET':
-            serializer = LearningSkillsSerializer(skills,many = True)
-            return Response(serializer.data,status=status.HTTP_200_OK)
-        return Response({"message": "No Skills found"},status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        return Response({"message": f"Unexpected error occured {str(e)}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['GET','PUT','PATCH','DELETE'])
-@permission_classes([IsAuthenticated])
-def learning_skills(request,id):
-    try:
-        learning_skills = get_object_or_404(LearningSkills,pk=id)
-        if request.method == 'GET':
-            serializer = LearningSkillsSerializer(learning_skills)
-            return Response(serializer.data,status = status.HTTP_200_OK)
-        if request.method == 'PUT':
-            serializer = LearningSkillsSerializer(instance=learning_skills, data = request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response({"message" : "Skill updated successfully"},status = status.HTTP_200_OK)
-            return Response(serializer.errors,status = status.HTTP_400_BAD_REQUEST)
-        if request.method == 'PATCH':
-            serializer = LearningSkillsSerializer(instance = learning_skills,data = request.data, partial = True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response({"message" : "Skill updated successfully"},status = status.HTTP_200_OK)
-            return Response(serializer.errors,status = status.HTTP_400_BAD_REQUEST)
-        if request.method == 'DELETE':
-            deleted_data = LearningSkillsSerializer(learning_skills).data
-            learning_skills.delete()
-            return Response({"message" : "Record deleted successfully","deleted_data" : deleted_data},status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"message": str(e)},status = status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({"message" : str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
